@@ -16,6 +16,9 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
     def __init__(self, init_cfg=None):
         super(BaseDetector, self).__init__(init_cfg)
         self.fp16_enabled = False
+    @property
+    def with_cube(self):
+        return hasattr(self, 'cube_head') and self.cube_head is not None
 
     @property
     def with_neck(self):

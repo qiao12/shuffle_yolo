@@ -48,6 +48,8 @@ model = dict(
             use_sigmoid=True,
             loss_weight=2.0,
             reduction='sum'),
+        loss_cube_reg=dict(
+            type='SmoothL1Loss', beta=1.0, reduction="sum", loss_weight=1.0),
         loss_wh=dict(type='MSELoss', loss_weight=2.0, reduction='sum')),
     # training and testing settings
     train_cfg=dict(
@@ -69,7 +71,7 @@ data_root = '/home/calmcar/data/20200914/'
 img_norm_cfg = dict(mean=[91.87, 89.15, 95.04], std=[61.81, 59.86, 63.88], to_rgb=True)
 train_pipeline = [
     dict(type='LoadImageFromFile', to_float32=True),
-    dict(type='LoadAnnotations', with_bbox=True),
+    dict(type='LoadAnnotations', with_bbox=True,with_cube=True),
     dict(type='PhotoMetricDistortion'),
     dict(
         type='Expand',
@@ -85,7 +87,7 @@ train_pipeline = [
     dict(type='Normalize', **img_norm_cfg),
     dict(type='Pad', size_divisor=32),
     dict(type='DefaultFormatBundle'),
-    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels'])
+    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels','gt_cubes', 'gt_bboxes_ignore'])
 ]
 test_pipeline = [
     dict(type='LoadImageFromFile'),
@@ -141,5 +143,5 @@ evaluation = dict(interval=2, metric=['bbox'],save_best='bbox_mAP',)
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 load_from = None
-resume_from = "/home/calmcar/work_dir_yolo_608/epoch_70.pth"
+# resume_from = "/home/calmcar/work_dir_yolo_608/epoch_70.pth"
 workflow = [('train', 1)]

@@ -2,7 +2,6 @@ from .atss import ATSS
 from .autoassign import AutoAssign
 from .base import BaseDetector
 from .cascade_rcnn import CascadeRCNN
-from .centernet import CenterNet
 from .cornernet import CornerNet
 from .deformable_detr import DeformableDETR
 from .detr import DETR

@@ -75,6 +75,9 @@ class YOLOCubeHead(BaseDenseHead, BBoxTestMixin):
                      use_sigmoid=True,
                      loss_weight=1.0),
                  loss_wh=dict(type='MSELoss', loss_weight=1.0),
+                 loss_cube_reg=dict(
+                     type='SmoothL1Loss', beta=1.0, reduction="sum", loss_weight=1.0),
+
                  train_cfg=None,
                  test_cfg=None,
                  init_cfg=dict(
@@ -112,9 +115,12 @@ class YOLOCubeHead(BaseDenseHead, BBoxTestMixin):
         self.loss_conf = build_loss(loss_conf)
         self.loss_xy = build_loss(loss_xy)
         self.loss_wh = build_loss(loss_wh)
+        self.loss_cube_reg = build_loss(loss_cube_reg)
         # usually the numbers of anchors for each level are the same
         # except SSD detectors
         self.num_anchors = self.anchor_generator.num_base_anchors[0]
+        # self.num_ahchors ====3
+        print('-----------------num_anchors:{}----------------------'.format(self.num_anchors))
         assert len(
             self.anchor_generator.num_base_anchors) == len(featmap_strides)
         self._init_layers()
@@ -133,6 +139,9 @@ class YOLOCubeHead(BaseDenseHead, BBoxTestMixin):
     def _init_layers(self):
         self.convs_bridge = nn.ModuleList()
         self.convs_pred = nn.ModuleList()
+        self.cube_convs_bridge = nn.ModuleList()
+        self.cubu_convs_pred = nn.ModuleList()
+        print('----------------num_levels : {}---------------'.format(self.num_levels))
         for i in range(self.num_levels):
             conv_bridge = ConvModule(
                 self.in_channels[i],
@@ -148,6 +157,21 @@ class YOLOCubeHead(BaseDenseHead, BBoxTestMixin):
             self.convs_bridge.append(conv_bridge)
             self.convs_pred.append(conv_pred)
 
+
+            cube_conv_bridge = ConvModule(
+                self.in_channels[i],
+                self.out_channels[i],
+                3,
+                padding=1,
+                conv_cfg=self.conv_cfg,
+                norm_cfg=self.norm_cfg,
+                act_cfg=self.act_cfg)
+            cube_conv_pred = nn.Conv2d(self.out_channels[i],
+                                  self.num_anchors * 5, 1)
+
+            self.cube_convs_bridge.append(cube_conv_bridge)
+            self.cubu_convs_pred.append(cube_conv_pred)
+
     def init_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -160,9 +184,19 @@ class YOLOCubeHead(BaseDenseHead, BBoxTestMixin):
             bias = conv_pred.bias.reshape(self.num_anchors, -1)
             # init objectness with prior of 8 objects per feature map
             # refer to https://github.com/ultralytics/yolov3
+            print('--------------- bias size {} --------------'.format(bias.size()))
             nn.init.constant_(bias.data[:, 4],
                               bias_init_with_prob(8 / (608 / stride)**2))
             nn.init.constant_(bias.data[:, 5:], bias_init_with_prob(0.01))
+
+        for conv_pred, stride in zip(self.cubu_convs_pred, self.featmap_strides):
+            bias = conv_pred.bias.reshape(self.num_anchors, -1)
+            # init objectness with prior of 8 objects per feature map
+            # refer to https://github.com/ultralytics/yolov3
+            print('-------------- bia size :  {} -------------'.format(bias.size()))
+            nn.init.constant_(bias.data[:, 4],
+                              bias_init_with_prob(8 / (608 / stride)**2))
+            # nn.init.constant_(bias.data[:, 5:], bias_init_with_prob(0.01))
 
     def forward(self, feats):
         """Forward features from the upstream network.
@@ -175,15 +209,21 @@ class YOLOCubeHead(BaseDenseHead, BBoxTestMixin):
             tuple[Tensor]: A tuple of multi-level predication map, each is a
                 4D-tensor of shape (batch_size, 5+num_classes, height, width).
         """
-
+        for feat in feats:
+            print('_____________feats size {}____________'.format(feat.size()))
         assert len(feats) == self.num_levels
         pred_maps = []
+        cube_pred_maps = []
         for i in range(self.num_levels):
             x = feats[i]
+            # print(x.size())
+            y = self.cube_convs_bridge[i](x)
             x = self.convs_bridge[i](x)
             pred_map = self.convs_pred[i](x)
+            cube_pred_map = self.cubu_convs_pred[i](y)
             pred_maps.append(pred_map)
-
+            cube_pred_maps.append(cube_pred_map)
+        # return (tuple(pred_maps),tuple(cube_pred_maps))
         return tuple(pred_maps),
 
     @force_fp32(apply_to=('pred_maps', ))
@@ -214,8 +254,7 @@ class YOLOCubeHead(BaseDenseHead, BBoxTestMixin):
                 each element represents the class label of the corresponding
                 box.
         """
-        print(img_metas.__len__())
-        print(print(img_metas[0]))
+
         num_levels = len(pred_maps)
         pred_maps_list = [pred_maps[i].detach() for i in range(num_levels)]
         scale_factors = [
@@ -281,6 +320,7 @@ class YOLOCubeHead(BaseDenseHead, BBoxTestMixin):
             pred_map = pred_map.permute(0, 2, 3,
                                         1).reshape(batch_size, -1,
                                                    self.num_attrib)
+            print('********************************pred_map*************************************')
             # Inplace operation like
             # ```pred_map[..., :2] = \torch.sigmoid(pred_map[..., :2])```
             # would create constant tensor when exporting to onnx
@@ -412,11 +452,13 @@ class YOLOCubeHead(BaseDenseHead, BBoxTestMixin):
             ]
         return det_results
 
-    @force_fp32(apply_to=('pred_maps', ))
+    @force_fp32(apply_to=('pred_maps', 'cube_pred_maps',))
     def loss(self,
              pred_maps,
+             # cube_pred_maps,
              gt_bboxes,
              gt_labels,
+             gt_cube_ann,
              img_metas,
              gt_bboxes_ignore=None):
         """Compute loss of the head.
@@ -435,10 +477,15 @@ class YOLOCubeHead(BaseDenseHead, BBoxTestMixin):
         Returns:
             dict[str, Tensor]: A dictionary of loss components.
         """
+
+
         print("gt_bboxes：真实标签形状:{}{}".format(gt_bboxes.__len__(),gt_bboxes[0].size()))
         print("pred_maps:预测特征图形状{}{}".format(pred_maps.__len__(),pred_maps[0].size()))
+        print('------------------------img_metas:{}--------------'.format(img_metas[0]['pad_shape']))
 
-        # batch_size
+
+
+        # batch_size * (3*(21+5)) * feat_size_w*feat_size_h
         # print(" img_metas.len :batch_size"+img_metas.__len__())
         # {'filename': '/home/calmcar/data/20200914/JPEGImages/5e6335e097fb2a329d4eb96ccc3576d1_1_0_01000.png', 'ori_filename': '5e6335e097fb2a329d4eb96ccc3576d1_1_0_01000.png', 'ori_shape': (720, 1280, 3), 'img_shape': (244, 434, 3), 'pad_shape': (256, 448, 3), 'scale_factor': array([0.3390625 , 0.33888888, 0.3390625 , 0.33888888], dtype=float32), 'flip': True, 'flip_direction': 'horizontal', 'img_norm_cfg': {'mean': array([91.87, 89.15, 95.04], dtype=float32), 'std': array([61.81, 59.86, 63.88], dtype=float32), 'to_rgb': True}, 'batch_input_shape': (512, 608)}
         # print(img_metas[0])
@@ -472,7 +519,7 @@ class YOLOCubeHead(BaseDenseHead, BBoxTestMixin):
 
 
         target_maps_list, neg_maps_list = self.get_targets(
-            anchor_list, responsible_flag_list, gt_bboxes, gt_labels)
+            anchor_list, responsible_flag_list,gt_cube_ann, gt_bboxes, gt_labels)
 
         losses_cls, losses_conf, losses_xy, losses_wh = multi_apply(
             self.loss_single, pred_maps, target_maps_list, neg_maps_list)
@@ -528,7 +575,7 @@ class YOLOCubeHead(BaseDenseHead, BBoxTestMixin):
 
         return loss_cls, loss_conf, loss_xy, loss_wh
 
-    def get_targets(self, anchor_list, responsible_flag_list, gt_bboxes_list,
+    def get_targets(self, anchor_list, responsible_flag_list, gt_cube_ann,gt_bboxes_list,
                     gt_labels_list):
         """Compute target maps for anchors in multiple images.
 
@@ -557,7 +604,7 @@ class YOLOCubeHead(BaseDenseHead, BBoxTestMixin):
         print(num_level_anchors)
         # num_level_anchor [969, 3876]
         results = multi_apply(self._get_targets_single, anchor_list,
-                              responsible_flag_list, gt_bboxes_list,
+                              responsible_flag_list, gt_cube_ann,gt_bboxes_list,
                               gt_labels_list)
 
         all_target_maps, all_neg_maps = results
@@ -567,7 +614,7 @@ class YOLOCubeHead(BaseDenseHead, BBoxTestMixin):
 
         return target_maps_list, neg_maps_list
 
-    def _get_targets_single(self, anchors, responsible_flags, gt_bboxes,
+    def _get_targets_single(self, anchors, responsible_flags,gt_cube_ann, gt_bboxes,
                             gt_labels):
         """Generate matching bounding box prior and converted GT.
 
@@ -586,6 +633,31 @@ class YOLOCubeHead(BaseDenseHead, BBoxTestMixin):
                 neg_map (Tensor): Negative map of each scale level,
                     shape (num_total_anchors,)
         """
+        # [  0.0000,   0.0000,   0.0000,   0.0000,   0.0000,   0.0000,   0.0000,
+        #            0.0000,   0.0000,   0.0000,   0.0000,   0.0000,   0.0000,   0.0000,
+        #            0.0000,   0.0000],
+        #         [  1.0000,   1.0000,   0.0000,   0.0000, 366.1328, 113.7914, 386.5171,
+        #          116.9305,   0.0000,   0.0000,   0.0000,   0.0000,   0.0000,   0.0000,
+        #            0.0000,   0.0000],
+        #         [  0.0000,   0.0000,   0.0000,   0.0000,   0.0000,   0.0000,   0.0000,
+        #            0.0000,   0.0000,   0.0000,   0.0000,   0.0000,   0.0000,   0.0000,
+        #            0.0000,   0.0000],
+        #         [  1.0000,   1.0000,   1.0000,   0.0000, 274.0116, 120.0695, 302.2360,
+        #          115.3609, 255.1953, 119.2848,   0.0000,   0.0000,   0.0000,   0.0000,
+        #            0.0000,   0.0000],
+
+        # print('------------------------------ cube_ann----------------------')
+        # print(gt_cube_ann)
+        # print('-------------------------------cube_ann-----------------------')
+
+        # print('------------------------------ gt_boxes----------------------')
+        # print(gt_bboxes)
+        # print('-------------------------------gt_boxes-----------------------')
+
+        # print('------------------------------ gt_labels----------------------')
+        # print(gt_labels)
+        # print('-------------------------------gt_labels-----------------------')
+
 
         anchor_strides = []
         for i in range(len(anchors)):
@@ -609,25 +681,42 @@ class YOLOCubeHead(BaseDenseHead, BBoxTestMixin):
         assign_result = self.assigner.assign(concat_anchors,
                                              concat_responsible_flags,
                                              gt_bboxes)
+
         sampling_result = self.sampler.sample(assign_result, concat_anchors,
                                               gt_bboxes)
 
-        # print("采样后的ahchor:{}".format(sampling_result.info))
+        # print(sampling_result.pos_bboxes)
+        # cube_assign_result = self.assigner.assign(concat_anchors,
+        #                                      concat_responsible_flags,
+        #                                      gt_cube_ann)
+
+        # cube_sampling_result = self.sampler.sample(cube_assign_result, concat_anchors,
+        #                                       gt_cube_ann)
 
         target_map = concat_anchors.new_zeros(
             concat_anchors.size(0), self.num_attrib)
-        # torch.Size([5415, 5+21]) =1083 +4332 = 3 * 19 * 19 +3 * 38 * 38
+        # cube_target_map = concat_anchors.new_zeros(
+        #     concat_anchors.size(0), 4)
+
+
         target_map[sampling_result.pos_inds, :4] = self.bbox_coder.encode(
             sampling_result.pos_bboxes, sampling_result.pos_gt_bboxes,
             anchor_strides[sampling_result.pos_inds])
 
+        # cube_target_map[sampling_result.pos_inds, :4] = self.bbox_coder.encode(
+        #     cube_sampling_result.pos_bboxes, cube_assign_result.pos_gt_bboxes,
+        #     anchor_strides[cube_sampling_result.pos_inds])
+
+
+
         target_map[sampling_result.pos_inds, 4] = 1
 
-        gt_labels_one_hot = F.one_hot(
-            gt_labels, num_classes=self.num_classes).float()
+        gt_labels_one_hot = F.one_hot(gt_labels, num_classes=self.num_classes).float()
+
+
         if self.one_hot_smoother != 0:  # label smooth
             gt_labels_one_hot = gt_labels_one_hot * (
-                1 - self.one_hot_smoother
+                    1 - self.one_hot_smoother
             ) + self.one_hot_smoother / self.num_classes
         target_map[sampling_result.pos_inds, 5:] = gt_labels_one_hot[
             sampling_result.pos_assigned_gt_inds]

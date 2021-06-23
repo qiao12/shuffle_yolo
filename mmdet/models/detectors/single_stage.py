@@ -53,6 +53,7 @@ class SingleStageDetector(BaseDetector):
                       img_metas,
                       gt_bboxes,
                       gt_labels,
+                      # gt_cubes,
                       gt_bboxes_ignore=None):
         """
         Args:
@@ -74,8 +75,10 @@ class SingleStageDetector(BaseDetector):
         """
         super(SingleStageDetector, self).forward_train(img, img_metas)
         x = self.extract_feat(img)
+        # losses = self.bbox_head.forward_train(x, img_metas, gt_bboxes,
+        #                                       gt_labels, gt_cubes,gt_bboxes_ignore)
         losses = self.bbox_head.forward_train(x, img_metas, gt_bboxes,
-                                              gt_labels, gt_bboxes_ignore)
+                                              gt_labels,gt_bboxes_ignore)
         return losses
 
     def simple_test(self, img, img_metas, rescale=False):

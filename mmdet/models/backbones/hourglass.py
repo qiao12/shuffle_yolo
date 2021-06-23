@@ -89,6 +89,7 @@ class HourglassModule(BaseModule):
         else:
             shape = up1.shape[2:]
             up2 = self.up2(low3, size=shape, **self.upsample_cfg)
+
         return up1 + up2
 
 
@@ -202,6 +203,7 @@ class HourglassNet(BaseModule):
 
             hourglass_feat = single_hourglass(inter_feat)
             out_feat = out_conv(hourglass_feat)
+            # print('-------------out size : {}------------------'.format(out_feat.size()))
             out_feats.append(out_feat)
 
             if ind < self.num_stacks - 1:

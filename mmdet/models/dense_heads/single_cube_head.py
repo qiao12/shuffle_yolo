@@ -363,18 +363,31 @@ class SingleCubeHead(BaseDenseHead, BBoxTestMixin):
         gt_cxy = (gt_bboxes[:, :2] + gt_bboxes[:, 2:4]) / 2
         gt_wh = gt_bboxes[:, 2:4] - gt_bboxes[:, :2]
         gt_xywh = torch.cat([gt_cxy, gt_wh], dim=1)
+
+
+
         pesudo_gt_bboxes = torch.cat([-0.5 * gt_wh, 0.5*gt_wh], dim=1)
         pesudo_anchors = torch.cat([-0.5 * flat_anchors, 0.5 * flat_anchors], dim=1)
+
+
+
         overlaps = bbox_overlaps(pesudo_gt_bboxes, pesudo_anchors)
 
         # return results
         assigned_gt_inds = []
+
         bbox_targets = []
+
         vedges_flag = []
+
         vedges = []
+
         reg_weights = []
+
         vedges_flag_weights = []
+
         vedges_weights = []
+
         assigned_labels = []
 
         if num_gts == 0:
@@ -582,6 +595,9 @@ class SingleCubeHead(BaseDenseHead, BBoxTestMixin):
         for img_id in range(len(img_metas)):
             mlvl_preds_list.append([preds_list[level][img_id] for level in range(num_levels)])
             mlvl_cube_preds_list.append([cube_preds_list[level][img_id] for level in range(num_levels)])
+
+
+
         all_bbox_targets, all_reg_weights, all_vedges_flag, all_vedges, \
         all_vedges_flag_weights, all_vedges_weights, all_assigned_gt_inds, all_assigned_labels = \
             self.get_targets(mlvl_preds_list, mlvl_cube_preds_list, mlvl_grids, self.mlvl_anchors, \

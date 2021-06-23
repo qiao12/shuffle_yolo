@@ -434,6 +434,7 @@ class YOLOV3Head(BaseDenseHead, BBoxTestMixin):
             dict[str, Tensor]: A dictionary of loss components.
         """
         num_imgs = len(img_metas)
+
         device = pred_maps[0][0].device
 
         featmap_sizes = [

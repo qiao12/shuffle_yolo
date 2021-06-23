@@ -71,7 +71,7 @@ class GridAssigner(BaseAssigner):
         num_gts, num_bboxes = gt_bboxes.size(0), bboxes.size(0)
 
         # compute iou between all gt and bboxes
-        print(gt_bboxes)
+        # print(gt_bboxes)
         overlaps = self.iou_calculator(gt_bboxes, bboxes)
         print("overlaps size :{}".format(overlaps.size()))
         # 1. assign -1 by default

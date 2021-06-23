@@ -218,8 +218,10 @@ class LoadAnnotations:
                  with_mask=False,
                  with_seg=False,
                  poly2mask=True,
+                 with_cube = True,
                  file_client_args=dict(backend='disk')):
         self.with_bbox = with_bbox
+        self.with_cube = with_cube
         self.with_label = with_label
         self.with_mask = with_mask
         self.with_seg = with_seg
@@ -245,6 +247,11 @@ class LoadAnnotations:
             results['gt_bboxes_ignore'] = gt_bboxes_ignore.copy()
             results['bbox_fields'].append('gt_bboxes_ignore')
         results['bbox_fields'].append('gt_bboxes')
+        return results
+
+    def _load_cubes(self, results):
+        ann_info = results['ann_info']
+        results['gt_cubes'] = ann_info['cubes']
         return results
 
     def _load_labels(self, results):
@@ -329,6 +336,8 @@ class LoadAnnotations:
         results['mask_fields'].append('gt_masks')
         return results
 
+
+
     def _load_semantic_seg(self, results):
         """Private function to load semantic segmentation annotations.
 
@@ -360,7 +369,8 @@ class LoadAnnotations:
             dict: The dict contains loaded bounding box, label, mask and
                 semantic segmentation annotations.
         """
-
+        if self.with_cube:
+            results = self._load_cubes(results)
         if self.with_bbox:
             results = self._load_bboxes(results)
             if results is None:

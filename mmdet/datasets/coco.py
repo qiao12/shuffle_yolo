@@ -212,6 +212,11 @@ class CocoDataset(CustomDataset):
 
         seg_map = img_info['filename'].replace('jpg', 'png')
 
+
+        # print('-------------------------ann_cube------------------------')
+        # print(gt_cube_ann)
+        # print('-------------------------ann_cube------------------------')
+
         ann = dict(
             bboxes=gt_bboxes,
             labels=gt_labels,

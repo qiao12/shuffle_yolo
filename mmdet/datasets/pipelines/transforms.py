@@ -231,6 +231,20 @@ class Resize:
             results['scale_factor'] = scale_factor
             results['keep_ratio'] = self.keep_ratio
 
+    def _resize_cube(self, results):
+        if 'gt_cubes' in results.keys():
+            img_shape = results['img_shape']
+            gt_cubes = results.get('gt_cubes', [])
+
+            if isinstance(results['scale_factor'], float):
+                gt_cubes[:, 4:] = gt_cubes[:, 4:] * results['scale_factor']
+            else:
+                gt_cubes[:, 4:] = gt_cubes[:, 4:] * np.tile(results['scale_factor'], 3)
+            gt_cubes[:, 4::2] = np.clip(gt_cubes[:, 4::2], 0, img_shape[1] - 1)
+            gt_cubes[:, 5::2] = np.clip(gt_cubes[:, 5::2], 0, img_shape[0] - 1)
+
+            results['gt_cubes'] = gt_cubes
+
     def _resize_bboxes(self, results):
         """Resize bounding boxes with ``results['scale_factor']``."""
         for key in results.get('bbox_fields', []):
@@ -303,6 +317,7 @@ class Resize:
         self._resize_bboxes(results)
         self._resize_masks(results)
         self._resize_seg(results)
+        self._resize_cube(results)
         return results
 
     def __repr__(self):
@@ -378,7 +393,9 @@ class RandomFlip:
 
         if isinstance(flip_ratio, list):
             assert len(self.flip_ratio) == len(self.direction)
-
+    def cube_flip(self, gt_cubes):
+        flipped = np.zeros_like(gt_cubes)
+        return flipped
     def bbox_flip(self, bboxes, img_shape, direction):
         """Flip bboxes horizontally.
 
@@ -458,6 +475,13 @@ class RandomFlip:
                 results[key] = self.bbox_flip(results[key],
                                               results['img_shape'],
                                               results['flip_direction'])
+            # flip cube
+            gt_cubes = results.get('gt_cubes', [])
+            if len(gt_cubes) > 0:
+                results['gt_cubes'] = self.cube_flip(gt_cubes)
+
+
+
             # flip masks
             for key in results.get('mask_fields', []):
                 results[key] = results[key].flip(results['flip_direction'])

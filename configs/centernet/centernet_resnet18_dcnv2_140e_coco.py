@@ -5,18 +5,19 @@ _base_ = [
 
 model = dict(
     type='CenterNet',
-    pretrained='torchvision://resnet18',
+    # pretrained='torchvision://resnet18',
     backbone=dict(
-        type='ResNet', depth=18, norm_eval=False, norm_cfg=dict(type='BN')),
-    neck=dict(
-        type='CTResNetNeck',
-        in_channel=512,
-        num_deconv_filters=(256, 128, 64),
-        num_deconv_kernels=(4, 4, 4),
-        use_dcn=True),
+        type='HourglassNet',
+        downsample_times=5,
+        num_stacks=1,
+        feat_channel = 64,
+        stage_channels=[256, 128, 192, 192, 128, 64],
+        stage_blocks=[2, 2, 2, 2, 2, 4],
+        norm_cfg=dict(type='BN', requires_grad=True)),
+    neck=None,
     bbox_head=dict(
         type='CenterNetHead',
-        num_classes=80,
+        num_classes=21,
         in_channel=64,
         feat_channel=64,
         loss_center_heatmap=dict(type='GaussianFocalLoss', loss_weight=1.0),
@@ -46,11 +47,11 @@ train_pipeline = [
         std=[1, 1, 1],
         to_rgb=True,
         test_pad_mode=None),
-    dict(type='Resize', img_scale=(512, 512), keep_ratio=True),
+    dict(type='Resize', img_scale=(256, 256), keep_ratio=True),
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='DefaultFormatBundle'),
-    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels'])
+    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels',])
 ]
 test_pipeline = [
     dict(type='LoadImageFromFile', to_float32=True),
@@ -81,13 +82,35 @@ test_pipeline = [
                 keys=['img'])
         ])
 ]
+dataset_type = 'CocoDataset'
+data_root = '/home/calmcar/data/20200914/'
+# data = dict(
+#     samples_per_gpu=12,
+#     workers_per_gpu=4,
+#     train=dict(pipeline=train_pipeline),
+#     val=dict(pipeline=test_pipeline),
+#     test=dict(pipeline=test_pipeline))
 data = dict(
-    samples_per_gpu=16,
-    workers_per_gpu=4,
-    train=dict(pipeline=train_pipeline),
-    val=dict(pipeline=test_pipeline),
-    test=dict(pipeline=test_pipeline))
-
+    samples_per_gpu=22,
+    workers_per_gpu=8,
+    train=dict(
+        type=dataset_type,
+        ann_file=data_root + 'cube_train.json',
+        img_prefix=data_root + 'JPEGImages/',
+        pipeline=train_pipeline,
+        filter_empty_gt=False),
+    val=dict(
+        type=dataset_type,
+        ann_file=data_root + 'cube_val.json',
+        img_prefix=data_root + 'JPEGImages/',
+        pipeline=test_pipeline,
+        filter_empty_gt=False),
+    test=dict(
+        type=dataset_type,
+        ann_file=data_root + 'cube_test.json',
+        img_prefix=data_root + 'JPEGImages/',
+        pipeline=test_pipeline,
+        filter_empty_gt=False))
 # optimizer
 # Based on the default settings of modern detectors, the SGD effect is better
 # than the Adam in the source code, so we use SGD default settings and

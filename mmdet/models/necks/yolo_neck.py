@@ -134,6 +134,7 @@ class YOLOV3Neck(BaseModule):
 
             detect = getattr(self, f'detect{i+2}')
             out = detect(tmp)
+            print('________neck size: {}_______'.format(out.size()))
             outs.append(out)
 
         return tuple(outs)
