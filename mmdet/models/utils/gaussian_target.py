@@ -221,7 +221,10 @@ def get_topk_from_heatmap(scores, k=20):
         - topk_ys (Tensor): Y-coord of each topk keypoint.
         - topk_xs (Tensor): X-coord of each topk keypoint.
     """
+    print(scores.size())
+    # batch, _, height, width = scores.size()
     batch, _, height, width = scores.size()
+
     topk_scores, topk_inds = torch.topk(scores.view(batch, -1), k)
     topk_clses = topk_inds // (height * width)
     topk_inds = topk_inds % (height * width)

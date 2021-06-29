@@ -25,35 +25,37 @@ class DetectionDistiller(BaseDetector):
         super(DetectionDistiller, self).__init__()
         
         self.teacher = build_detector(teacher_cfg.model,
-                                        train_cfg=teacher_cfg.get('train_cfg'),
+                                        # train_cfg=teacher_cfg.get('train_cfg'),
                                         test_cfg=teacher_cfg.get('test_cfg'))
         self.init_weights_teacher(teacher_pretrained)
-
-        
         self.teacher.eval()
+
+
         self.student= build_detector(student_cfg.model,
-                                        train_cfg=student_cfg.get('train_cfg'),
-                                        test_cfg=student_cfg.get('test_cfg'))
+                                        train_cfg=student_cfg.get('train_cfg'),)
+                                        # test_cfg=student_cfg.get('test_cfg'))
 
         
 
         self.distill_losses = nn.ModuleDict()
 
         self.distill_cfg = distill_cfg
+        # print(self.teacher)
         student_modules = dict(self.student.named_modules())
         teacher_modules = dict(self.teacher.named_modules())
+        # print(student_modules.keys())
         def regitster_hooks(student_module,teacher_module):
             def hook_teacher_forward(module, input, output):
-                
+
                     self.register_buffer(teacher_module,output)
-                
+
             def hook_student_forward(module, input, output):
 
-                    self.register_buffer( student_module,output )
+                    self.register_buffer(student_module,output )
             return hook_teacher_forward,hook_student_forward
-        
+
         for item_loc in distill_cfg:
-            
+
             student_module = 'student_' + item_loc.student_module.replace('.','_')
             teacher_module = 'teacher_' + item_loc.teacher_module.replace('.','_')
 
@@ -61,6 +63,7 @@ class DetectionDistiller(BaseDetector):
             self.register_buffer(teacher_module,None)
 
             hook_teacher_forward,hook_student_forward = regitster_hooks(student_module ,teacher_module )
+            # print(teacher_module)
             teacher_modules[item_loc.teacher_module].register_forward_hook(hook_teacher_forward)
             student_modules[item_loc.student_module].register_forward_hook(hook_student_forward)
 
@@ -127,17 +130,21 @@ class DetectionDistiller(BaseDetector):
         with torch.no_grad():
             self.teacher.eval()
             loss = self.teacher.extract_feat(img)
-           
+
         student_loss = self.student.forward_train(img, img_metas, **kwargs)
-        
+        # loss = self.teacher.forward_train(img, img_metas, **kwargs)
+
         
         
         buffer_dict = dict(self.named_buffers())
+        # for i in buffer_dict.keys():
+        #     print(i,buffer_dict[i].data)
         for item_loc in self.distill_cfg:
             
             student_module = 'student_' + item_loc.student_module.replace('.','_')
             teacher_module = 'teacher_' + item_loc.teacher_module.replace('.','_')
-            
+
+
             student_feat = buffer_dict[student_module]
             teacher_feat = buffer_dict[teacher_module]
 

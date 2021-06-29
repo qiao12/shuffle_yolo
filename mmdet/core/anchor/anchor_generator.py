@@ -741,4 +741,9 @@ class YOLOAnchorGenerator(AnchorGenerator):
         responsible_grid = responsible_grid[:, None].expand(
             responsible_grid.size(0), num_base_anchors).contiguous().view(-1)
         return responsible_grid
-
+if __name__ == '__main__':
+    anchor_generator = YOLOAnchorGenerator(base_sizes=[[(116, 90), (156, 198), (373, 326)],
+                                 [(30, 61), (62, 45), (59, 119)],
+                                 [(10, 13), (16, 30), (33, 23)]],
+                                           strides=[32, 16, 8])
+    anchor_generator.responsible_flags()

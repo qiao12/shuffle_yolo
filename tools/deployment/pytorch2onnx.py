@@ -38,8 +38,11 @@ def pytorch2onnx(config_path,
     orig_model = build_model_from_cfg(
         config_path, checkpoint_path, cfg_options=cfg_options)
     one_img, one_meta = preprocess_example_input(input_config)
+
+
     model, tensor_data = generate_inputs_and_wrap_model(
         config_path, checkpoint_path, input_config, cfg_options=cfg_options)
+
     output_names = ['dets', 'labels']
     if model.with_mask:
         output_names.append('masks')
@@ -63,6 +66,8 @@ def pytorch2onnx(config_path,
         }
         if model.with_mask:
             dynamic_axes['masks'] = {0: 'batch', 1: 'num_dets'}
+
+
 
     torch.onnx.export(
         model,

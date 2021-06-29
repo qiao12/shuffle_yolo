@@ -455,7 +455,7 @@ class YOLOCubeHead(BaseDenseHead, BBoxTestMixin):
     @force_fp32(apply_to=('pred_maps', 'cube_pred_maps',))
     def loss(self,
              pred_maps,
-             # cube_pred_maps,
+             cube_pred_maps,
              gt_bboxes,
              gt_labels,
              gt_cube_ann,
@@ -483,7 +483,7 @@ class YOLOCubeHead(BaseDenseHead, BBoxTestMixin):
         print("pred_maps:预测特征图形状{}{}".format(pred_maps.__len__(),pred_maps[0].size()))
         print('------------------------img_metas:{}--------------'.format(img_metas[0]['pad_shape']))
 
-
+        # gt_cube_box =
 
         # batch_size * (3*(21+5)) * feat_size_w*feat_size_h
         # print(" img_metas.len :batch_size"+img_metas.__len__())
@@ -510,10 +510,16 @@ class YOLOCubeHead(BaseDenseHead, BBoxTestMixin):
 
 
         responsible_flag_list = []
+        responsible_cube_flag_list = []
         for img_id in range(len(img_metas)):
             responsible_flag_list.append(
                 self.anchor_generator.responsible_flags(
                     featmap_sizes, gt_bboxes[img_id], device))
+            responsible_cube_flag_list.append(
+                self.anchor_generator.responsible_flags(
+                    featmap_sizes,gt_cube_ann[img_id],device
+                )
+            )
         print("单层responsible_flag数：{}".format(multi_level_anchors[0].size()))
 
 

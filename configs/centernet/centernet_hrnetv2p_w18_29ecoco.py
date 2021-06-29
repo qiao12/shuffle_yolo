@@ -5,15 +5,35 @@ _base_ = [
 
 model = dict(
     type='CenterNet',
-    # pretrained='torchvision://resnet18',
+    pretrained='open-mmlab://msra/hrnetv2_w18',
     backbone=dict(
-        type='HourglassNet',
-        downsample_times=5,
-        num_stacks=1,
-        feat_channel = 64,
-        stage_channels=[256, 128, 192, 192, 128, 64],
-        stage_blocks=[2, 2, 2, 2, 2, 4],
-        norm_cfg=dict(type='BN', requires_grad=True)),
+        # _delete_=True,
+        type='HRNet',
+        extra=dict(
+            stage1=dict(
+                num_modules=1,
+                num_branches=1,
+                block='BOTTLENECK',
+                num_blocks=(4, ),
+                num_channels=(64, )),
+            stage2=dict(
+                num_modules=1,
+                num_branches=2,
+                block='BASIC',
+                num_blocks=(4, 4),
+                num_channels=(32, 64)),
+            stage3=dict(
+                num_modules=4,
+                num_branches=3,
+                block='BASIC',
+                num_blocks=(4, 4, 4),
+                num_channels=(32, 64, 128)),
+            stage4=dict(
+                num_modules=3,
+                num_branches=4,
+                block='BASIC',
+                num_blocks=(4, 4, 4, 4),
+                num_channels=(32, 64, 128, 256)))),
     neck=None,
     #     neck=dict(
     #         type='CTResNetNeck',
@@ -24,8 +44,8 @@ model = dict(
     bbox_head=dict(
         type='CenterNetHead',
         num_classes=21,
-        in_channel=64,
-        feat_channel=64,
+        in_channel=256,
+        feat_channel=256,
         loss_center_heatmap=dict(type='GaussianFocalLoss', loss_weight=1.0),
         loss_wh=dict(type='L1Loss', loss_weight=0.1),
         loss_offset=dict(type='L1Loss', loss_weight=1.0)),
@@ -132,14 +152,6 @@ lr_config = dict(
     warmup_iters=1000,
     warmup_ratio=1.0 / 1000,
     step=[90, 120])
-
-lr_config = dict(
-    policy='cosine',
-    warmup='linear',
-    warmup_iters=1000,
-    warmup_ratio=1.0 / 100,
-    by_epoch=False,
-    target_lr=1e-5)
 runner = dict(max_epochs=140)
 
 # Avoid evaluation and saving weights too frequently

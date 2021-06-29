@@ -12,7 +12,7 @@ model = dict(
         num_stacks=1,
         feat_channel = 64,
         stage_channels=[256, 128, 192, 192, 128, 64],
-        stage_blocks=[2, 2, 2, 2, 2, 4],
+        stage_blocks=[1, 1, 1, 1, 1, 2],
         norm_cfg=dict(type='BN', requires_grad=True)),
     neck=None,
     #     neck=dict(

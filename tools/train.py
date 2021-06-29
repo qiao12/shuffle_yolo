@@ -155,11 +155,11 @@ def main():
     meta['seed'] = args.seed
     meta['exp_name'] = osp.basename(args.config)
 
-    model = build_detector(
-        cfg.model,
-        train_cfg=cfg.get('train_cfg'),
-        test_cfg=cfg.get('test_cfg'))
-    model.init_weights()
+    # model = build_detector(
+    #     cfg.model,
+    #     train_cfg=cfg.get('train_cfg'),
+    #     test_cfg=cfg.get('test_cfg'))
+    # model.init_weights()
 
     distiller_cfg = cfg.get('distiller', None)
     if distiller_cfg is None:
@@ -175,7 +175,7 @@ def main():
                                 train_cfg=student_cfg.get('train_cfg'),
                                 test_cfg=student_cfg.get('test_cfg'))
 
-
+    # print(model)
 
     datasets = [build_dataset(cfg.data.train)]
     if len(cfg.workflow) == 2:
